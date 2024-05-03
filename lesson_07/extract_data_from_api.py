@@ -43,7 +43,7 @@ def handle_sales_data():
     # Виклик функції для отримання та збереження даних
     fetch_sales_data(raw_dir, date)
 
-    return jsonify({"message": f"Data for {date} has been fetched and saved to {raw_dir}."}), 200
+    return jsonify({"message": f"Data for {date} has been fetched and saved to {raw_dir}."}), 201
 
 if __name__ == '__main__':
     app.run(port=8081)

@@ -1,75 +1,59 @@
 version: '3'
-x-airflow-common:
-  &airflow-common
-  build: .
-  image: ${AIRFLOW_IMAGE_NAME:-extending_airflow:latest}
-  environment:
-    &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CORE__FERNET_KEY: ''
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 10
-    AIRFLOW__SMTP__SMTP_HOST: smtp.gmail.com
-    AIRFLOW__SMTP__SMTP_STARTTLS: True
-    AIRFLOW__SMTP__SMTP_SSL: False
-    AIRFLOW__SMTP__SMTP_USER: robot.dreams.course@gmail.com
-    AIRFLOW__SMTP__SMTP_PASSWORD: kachmvfqkvmapdva
-    AIRFLOW__SMTP__SMTP_PORT: 587
-    AIRFLOW__SMTP__SMTP_MAIL_FROM: robot.dreams.course@gmail.com
-  volumes:
-    - .\dags:/opt/airflow/dags
-    - .\logs:/opt/airflow/logs
-    - .\plugins:/opt/airflow/plugins
-#  user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
-  depends_on:
-    postgres:
-      condition: service_healthy
-
 services:
   postgres:
-    image: postgres:16
+    image: postgres:latest
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
-    volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
     ports:
-      - 5432:5432
-    healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "airflow" ]
-      interval: 5s
-      retries: 5
-    restart: always
+      - "5432:5432"
 
-  airflow-webserver:
-    <<: *airflow-common
-    command: webserver
-    ports:
-      - 8080:8080
-    healthcheck:
-      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-    restart: always
-
-  airflow-scheduler:
-    <<: *airflow-common
-    command: scheduler
-    restart: always
-
-  airflow-init:
-    <<: *airflow-common
-    command: version
+  initdb:
+    image: apache/airflow:2.9.0
+    depends_on:
+      - postgres
     environment:
-      <<: *airflow-common-env
-      _AIRFLOW_DB_UPGRADE: 'true'
-      _AIRFLOW_WWW_USER_CREATE: 'true'
-      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
-      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+    command: >
+      bash -c "airflow db init &&
+               airflow users create --username airflow --password airflow --firstname Airflow --lastname User --role Admin --email airflow@example.com"
 
-volumes:
-  postgres-db-volume:
+  webserver:
+    image: apache/airflow:2.9.0
+    restart: always
+    depends_on:
+      - postgres
+      - initdb
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__FERNET_KEY=jsDPRErfWFfJL2PvTkhuN2ZpQHsOVIruQDuJazJZM0U=
+      - AIRFLOW__WEBSERVER__SECRET_KEY=long_and_random_secret_key
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./file_storage:/file_storage
+    ports:
+      - "8080:8080"
+    command: webserver
+
+  scheduler:
+    image: apache/airflow:2.9.0
+    restart: always
+    depends_on:
+      - postgres
+      - initdb
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__FERNET_KEY=jsDPRErfWFfJL2PvTkhuN2ZpQHsOVIruQDuJazJZM0U=
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./file_storage:/file_storage
+    command: scheduler

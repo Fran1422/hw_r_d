@@ -52,7 +52,7 @@ def handle_conversion():
 
     convert_json_to_avro(raw_dir, stg_dir)
 
-    return jsonify({"message": f"Data from {raw_dir} has been converted to Avro and saved to {stg_dir}."}), 200
+    return jsonify({"message": f"Data from {raw_dir} has been converted to Avro and saved to {stg_dir}."}), 201
 
 if __name__ == '__main__':
     app.run(port=8082)
